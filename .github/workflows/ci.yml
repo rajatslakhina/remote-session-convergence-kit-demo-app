@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: iOS Simulator · build
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      # This is the cheapest honest substitute for a human opening the project: it
+      # proves the remote package genuinely resolves from GitHub at the pinned
+      # version, rather than only resolving against a copy on one machine.
+      - name: Resolve package dependencies
+        run: xcodebuild -resolvePackageDependencies -project Demo.xcodeproj -scheme Demo
+
+      # `generic/platform=iOS Simulator` on purpose, never a named device. Pinning to
+      # `name=iPhone 16,OS=latest` ties the job to whichever simulator *runtimes* are
+      # installed on that day's runner image, which is not guaranteed — a compile-only
+      # check needs no device to exist.
+      # No `| xcpretty`: piping would hand the step xcpretty's exit status instead of
+      # xcodebuild's, so a failing build could report success. Prettier logs are not
+      # worth a green tick that means nothing.
+      - name: Build
+        run: |
+          xcodebuild build \
+            -project Demo.xcodeproj \
+            -scheme Demo \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO
